@@ -2,68 +2,99 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <string.h>
+
 pthread_barrier_t barrier;
 pthread_mutex_t mutex;
 char* buffer;
 int counter;
 int max_size;
+sem_t sem;
+
 void* write(void* arg) {
     char character = *(char*)arg;
-    // printf("Thread %c waiting at the barrier.\n", character);
-    // Wait for all threads to reach this point
     pthread_barrier_wait(&barrier);
-    
-    for (int i = 0; i < 10; i++)
-        pthread_mutex_lock(&mutex); 
-        printf("%c\n", character);
-        pthread_mutex_unlock(&mutex); 
-    
+
+    while (1) {
+        sem_wait(&sem);
+        if (counter >= max_size) {
+            sem_post(&sem);
+            break;
+        }
+        buffer[counter++] = character;
+        sem_post(&sem);
+    }
     return NULL;
 }
-int setpriority(pthread_t *thr, int newpolicy, int newpriority)
-{
-	int policy, ret;
-	struct sched_param param;
-	if (newpriority > sched_get_priority_max(newpolicy) || newpriority < sched_get_priority_min(newpolicy)){
-		printf("Invalid priority: MIN: %d, MAX: %d\n", sched_get_priority_min(newpolicy), sched_get_priority_max(newpolicy));
-		return -1;
-	}
-	pthread_getschedparam(*thr, &policy, &param);
-	param.sched_priority = newpriority;
-	ret = pthread_setschedparam(*thr, newpolicy, &param);
-	if (ret != 0)
-		perror("perror(): ");
-	pthread_getschedparam(*thr, &policy, &param);
-	return 0;
-}
-int main(int argc, char **argv) {
-    if (argc < 4) {
-        printf("Usage: %s <tamanho_buffer> <num_threads> <policy>\n", argv[0]);
-        return 0;
+
+void post_process_buffer(char* buffer, int size) {
+    char last_char = buffer[0];
+    int count = 1;
+    int counts[26] = {0}; // Para contar ocorrências de A-Z
+    counts[last_char - 'A']++;
+
+    for (int i = 1; i < size; i++) {
+        if (buffer[i] != last_char) {
+            printf("%c", last_char);
+            last_char = buffer[i];
+            count++;
+        }
+        counts[buffer[i] - 'A']++;
     }
+    printf("%c\n", last_char);
+
+    for (int i = 0; i < 26; i++) {
+        if (counts[i] > 0) {
+            printf("%c = %d\n", 'A' + i, counts[i]);
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 4) {
+        printf("Uso: %s <tamanho_buffer> <num_threads> <policy>\n", argv[0]);
+        return 1;
+    }
+
     int tamanho_buffer = atoi(argv[1]);
     int num_threads = atoi(argv[2]);
     int policy = atoi(argv[3]);
     pthread_t threads[num_threads];
-    char* characters[num_threads];
-    int local_buffer[tamanho_buffer];
-    buffer = local_buffer;
+    char characters[num_threads];
+    buffer = (char*)malloc(tamanho_buffer * sizeof(char));
     max_size = tamanho_buffer;
     counter = 0;
-    if (pthread_mutex_init(&lock, NULL) != 0) { 
+
+    if (pthread_mutex_init(&mutex, NULL) != 0) { 
         printf("\n mutex init has failed\n"); 
         return 1; 
     }
+
     pthread_barrier_init(&barrier, NULL, num_threads);
+    sem_init(&sem, 0, 1);
+
     for (int i = 0; i < num_threads; i++) {
         characters[i] = 'A' + i;
         pthread_create(&threads[i], NULL, write, &characters[i]);
-        int priority = (policy == 1 || policy == 2) ? 1 : 0;
-        setpriority(&threads[i], policy, priority);
     }
+
     for (int i = 0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
     }
-    printf("All threads ready!\n");
+
+    pthread_mutex_destroy(&mutex);
     pthread_barrier_destroy(&barrier);
+    sem_destroy(&sem);
+
+    printf("Buffer sem pós-processamento:\n");
+    for (int i = 0; i < tamanho_buffer; i++) {
+        printf("%c", buffer[i]);
+    }
+    printf("\n");
+
+    printf("Buffer após pós-processamento:\n");
+    post_process_buffer(buffer, tamanho_buffer);
+
+    free(buffer);
+    return 0;
 }
