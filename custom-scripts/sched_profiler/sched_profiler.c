@@ -3,6 +3,13 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <string.h>
+#include <sched.h>
+#include "../setpriority/setpriority.h" // Inclua o cabeçalho aqui
+
+#define SCHED_LOW_IDLE 7
+#define SCHED_IDLE 5
+#define SCHED_RR 2
+#define SCHED_FIFO 1
 
 pthread_barrier_t barrier;
 pthread_mutex_t mutex;
@@ -58,7 +65,11 @@ int main(int argc, char* argv[]) {
 
     int tamanho_buffer = atoi(argv[1]);
     int num_threads = atoi(argv[2]);
-    int policy = atoi(argv[3]);
+    char* policy_str = argv[3];
+    int policy = atoi(policy_str);
+    printf("Policy: %d\n", policy);
+
+
     pthread_t threads[num_threads];
     char characters[num_threads];
     buffer = (char*)malloc(tamanho_buffer * sizeof(char));
@@ -76,6 +87,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < num_threads; i++) {
         characters[i] = 'A' + i;
         pthread_create(&threads[i], NULL, write, &characters[i]);
+        setpriority(&threads[i], policy, sched_get_priority_max(policy));
     }
 
     for (int i = 0; i < num_threads; i++) {
@@ -94,6 +106,8 @@ int main(int argc, char* argv[]) {
 
     printf("Buffer após pós-processamento:\n");
     post_process_buffer(buffer, tamanho_buffer);
+    printf("Policy : \n");
+    print_sched(policy);
 
     free(buffer);
     return 0;

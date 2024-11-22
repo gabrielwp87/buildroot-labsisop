@@ -1,3 +1,4 @@
+#include "setpriority.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,7 +6,11 @@
 #include <string.h>
 #include <linux/sched.h>
 
+
 #define SCHED_LOW_IDLE 7
+#define SCHED_IDLE 5
+#define SCHED_RR 2
+#define SCHED_FIFO 1
 
 volatile int running = 1;
 
@@ -38,6 +43,9 @@ void print_sched(int policy)
 			break;
 		case SCHED_IDLE:
 			printf("SCHED_IDLE");
+			break;
+		case SCHED_LOW_IDLE:
+			printf("SCHED_LOW_IDLE");
 			break;
 		default:
 			printf("unknown\n");
@@ -74,23 +82,4 @@ int setpriority(pthread_t *thr, int newpolicy, int newpriority)
 	return 0;
 }
 
-int main(int argc, char **argv)
-{
-	int timesleep;
-	pthread_t thr;
 
-	if (argc < 2){
-		printf("usage: ./%s <execution_time>\n\n", argv[0]);
-
-		return 0;
-	}
-
-	timesleep = atoi(argv[1]);
-	pthread_create(&thr, NULL, run, NULL);
-	setpriority(&thr, SCHED_LOW_IDLE, 0);
-	sleep(timesleep);
-	running = 0;
-	pthread_join(thr, NULL);
-
-	return 0;
-}
